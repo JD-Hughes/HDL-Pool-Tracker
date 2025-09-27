@@ -11,8 +11,8 @@ Create a virtual enviroment for dev (at project root) and activate
 Windows:
 
 ```bash
-  python -m venv .venv
-  source .venv\Scripts\activate.bat
+  py -m venv .venv
+  .venv\Scripts\activate.bat
 ```
 
 Linux/MacOS:
