@@ -13,6 +13,7 @@ INITIAL_ELO = 1200
 K_FACTOR = 32
 K_NEW_PLAYER = 40
 GAMES_NEW_PLAYER = 10
+SMOOTHING_WINDOW = 5  # for graph smoothing
 
 def load_players():
     if os.path.exists(PLAYER_FILE):
@@ -71,6 +72,7 @@ class EloApp:
         self.players = load_players()
         self.history = load_history()
         self.graph_canvas = None
+        self.smoothing_enabled = tk.BooleanVar(value=True) # Default to ON
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True)
@@ -290,7 +292,22 @@ class EloApp:
     def create_graph_tab(self):
         self.graph_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.graph_tab, text="Elo Graphs")
-        ttk.Button(self.graph_tab, text="Refresh Elo Graph", command=self.plot_elo_graph).pack(pady=10)
+        control_frame = ttk.Frame(self.graph_tab)
+        control_frame.pack(fill='x', pady=5, padx=5)
+
+        # Toggle Button for Smoothing
+        ttk.Checkbutton(
+            control_frame, 
+            text=f"Smooth Elo Line ({SMOOTHING_WINDOW} games)", 
+            variable=self.smoothing_enabled,
+            command=self.plot_elo_graph # Redraw the graph when toggled
+        ).pack(side=tk.LEFT, padx=10)
+
+        # Refresh Button
+        ttk.Button(control_frame, text="Refresh Elo Graph", command=self.plot_elo_graph).pack(side=tk.RIGHT, padx=10)
+
+        # Call plot_elo_graph to show the initial graph
+        self.plot_elo_graph()
 
     def plot_elo_graph(self):
         if self.graph_canvas:
@@ -302,35 +319,62 @@ class EloApp:
 
         history = self.history.copy()
         players = set(history["Player1"]) | set(history["Player2"])
-        timestamps = []
+
+        # 1. Get the start date (first recorded match)
+        start_date_str = history.iloc[0]["Date"]
+        start_date = datetime.fromisoformat(start_date_str)
+
+        # 2. Calculate Days Since Start for each match
+        timestamps = [datetime.fromisoformat(d) for d in history["Date"]]
+        days_since_start = [(t - start_date).total_seconds() / (24 * 3600) for t in timestamps]
+
         elo_data = {p: [] for p in players}
 
         for _, row in history.iterrows():
-            timestamps.append(datetime.fromisoformat(row["Date"]).strftime("%Y-%m-%d %H:%M"))
+            # For each match, update Elo for both players in the match
             for p in players:
-                if p == row["Player1"]:
-                    elo_data[p].append(row["Winner_Elo_After"] if p == row["Winner"] else row["Loser_Elo_After"])
-                elif p == row["Player2"]:
+                if p == row["Player1"] or p == row["Player2"]:
+                    # Append the Elo after the match
                     elo_data[p].append(row["Winner_Elo_After"] if p == row["Winner"] else row["Loser_Elo_After"])
                 else:
+                    # If the player was NOT in this match, append their *previous* Elo
                     elo_data[p].append(elo_data[p][-1] if elo_data[p] else INITIAL_ELO)
 
+        # 3. Conditional Smoothing
+        elo_to_plot = elo_data
+        title_suffix = ""
+
+        if self.smoothing_enabled.get():
+            # Create a DataFrame from the Elo data lists
+            elo_df = pd.DataFrame(elo_data)
+            
+            # Apply a rolling mean to each player's column.
+            smoothed_elo_df = elo_df.rolling(window=SMOOTHING_WINDOW, min_periods=1).mean()
+            
+            # Use the smoothed data for plotting
+            elo_to_plot = {player: smoothed_elo_df[player].tolist() for player in players}
+            title_suffix = f" (Smoothed over {SMOOTHING_WINDOW} games)"
+
+
+        # --- Matplotlib Plotting ---
         fig = Figure(figsize=(8, 5), dpi=100)
         ax = fig.add_subplot(111)
-        for player, elos in elo_data.items():
-            ax.plot(timestamps, elos, label=player)
-        ax.set_title("Elo Ratings Over Time")
-        ax.set_xlabel("Date & Time")
+
+        for player, elos in elo_to_plot.items():
+            # Plot the selected data (raw or smoothed)
+            ax.plot(days_since_start, elos, label=player)
+
+        ax.set_title(f"Elo Ratings Over Time{title_suffix}")
+        ax.set_xlabel(f"Days Since Start of Season ({start_date.strftime('%Y-%m-%d')})") 
         ax.set_ylabel("Elo")
-        ax.tick_params(axis='x', rotation=45)
+        ax.tick_params(axis='x')
         ax.grid(True)
         ax.legend()
-        fig.subplots_adjust(bottom=0.25)
+        fig.subplots_adjust(bottom=0.15)
 
         self.graph_canvas = FigureCanvasTkAgg(fig, master=self.graph_tab)
         self.graph_canvas.draw()
         self.graph_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
     def create_admin_tab(self):
         self.admin_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.admin_tab, text="Admin")
