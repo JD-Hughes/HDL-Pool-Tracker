@@ -395,7 +395,7 @@ if __name__ == "__main__":
     
     # Run the Tkinter application
     root = tk.Tk()
-    #root.iconbitmap("assets/8-ball-icon.ico") #TODO: Fix this
+    #root.iconbitmap("assets/8-ball-icon.ico") #TODO: Fix this (No icon showing in MacOS and PyInstaller build issues)
     root.geometry("800x600")
     app = EloApp(root)
     root.mainloop()
