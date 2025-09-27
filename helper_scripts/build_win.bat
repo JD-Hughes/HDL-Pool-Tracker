@@ -1,0 +1,1 @@
+python -m PyInstaller --noconfirm --windowed --onefile "main.py"
