@@ -21,6 +21,7 @@ Linux/MacOS:
   python -m venv .venv
   source .venv/bin/activate
 ```
+Note: If Tkinter does not work properly on MacOS use the helper script macos_install_python_tk.sh to reinstall python with an updated version of Tk
 
 ### Install dependencies
 
