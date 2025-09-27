@@ -1,1 +1,0 @@
-python -m PyInstaller --noconfirm --windowed --onefile "Pool ELO Tracker GUI V1.0.py"

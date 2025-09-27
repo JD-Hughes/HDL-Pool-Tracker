@@ -1,1 +1,0 @@
-python -m PyInstaller --noconfirm --windowed --onefile elo_pool_tracker_gui.py
