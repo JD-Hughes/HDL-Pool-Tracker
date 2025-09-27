@@ -30,3 +30,19 @@ Use pip to install dependencies listed in requirements.txt
 ```bash
   pip install -r requirements.txt
 ```
+
+### Running the code
+
+Use the virtual environment to run main.py
+
+```bash
+  python main.py
+```
+
+If no database file is created, a blank one will automatically be created
+
+## Building the binary
+
+To build the app for windows, use the helper scipt build_win.bat
+
+A main.exe binary will be generated inside the dist folder
