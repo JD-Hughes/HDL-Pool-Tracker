@@ -21,7 +21,7 @@ Linux/MacOS:
   python -m venv .venv
   source .venv/bin/activate
 ```
-Note: If Tkinter does not work properly on MacOS use the helper script macos_install_python_tk.sh to reinstall python with an updated version of Tk
+Note: If Tkinter does not work properly on MacOS use the helper script `macos_install_python_tk.sh` to reinstall python with an updated version of Tk
 
 ### Install dependencies
 
@@ -33,7 +33,7 @@ Use pip to install dependencies listed in requirements.txt
 
 ### Running the code
 
-Use the virtual environment to run main.py
+Use the virtual environment to run `main.py`
 
 ```bash
   python main.py
@@ -43,6 +43,6 @@ If no database file is created, a blank one will automatically be created
 
 ## Building the binary
 
-To build the app for windows, use the helper scipt build_win.bat
+To build the app for windows, use the helper scipt `build_win.bat`
 
 A main.exe binary will be generated inside the dist folder
