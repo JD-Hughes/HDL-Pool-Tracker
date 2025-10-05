@@ -5,7 +5,7 @@ import shutil
 
 DB_FILE = "elo_tracker.db"
 INITIAL_ELO = 1200
-DB_VERSION = 1
+DB_VERSION = 2
 
 # --- Database Initialization ---
 
@@ -84,16 +84,20 @@ def create_new_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 season_id INTEGER NOT NULL,
                 date TEXT NOT NULL,
+                doubles_match BOOLEAN NOT NULL DEFAULT 0,
                 player1_name TEXT NOT NULL,
                 player1b_name TEXT,
                 player2_name TEXT NOT NULL,
                 player2b_name TEXT,
-                winner_name TEXT NOT NULL,
-                winner_elo_before INTEGER NOT NULL,
-                winner_elo_after INTEGER NOT NULL,
-                loser_elo_before INTEGER NOT NULL,
-                loser_elo_after INTEGER NOT NULL,
-                win_reason TEXT,
+                player1_elo_before INTEGER NOT NULL,
+                player1_elo_after INTEGER NOT NULL,
+                player1b_elo_before INTEGER,
+                player1b_elo_after INTEGER,
+                player2_elo_before INTEGER NOT NULL,
+                player2_elo_after INTEGER NOT NULL,
+                player2b_elo_before INTEGER,
+                player2b_elo_after INTEGER,
+                winner INTEGER NOT NULL,
                 FOREIGN KEY (season_id) REFERENCES seasons (id)
             )
         """)
@@ -221,12 +225,16 @@ def delete_player(name):
 
 # --- Match Management ---
 
-def record_match(season_id, p1_name, p2_name, winner_name, elo_changes, win_reason):
+def record_match(season_id, p1_name, p2_name, winner_int, elo_changes,
+                 doubles_match=False, p1b_name=None, p2b_name=None,
+                 p1b_elo_before=None, p1b_elo_after=None,
+                 p2b_elo_before=None, p2b_elo_after=None):
     """
     Records a match and updates player stats in a single transaction.
-    `elo_changes` is a dict with new Elo, wins, losses, and lifetime games for both players.
+    Supports new schema: winner_int (1 or 2), new ELO columns, doubles fields.
     """
-    loser_name = p2_name if winner_name == p1_name else p1_name
+    loser_name = p2_name if winner_int == 1 else p1_name
+    winner_name = p1_name if winner_int == 1 else p2_name
     winner_data = elo_changes[winner_name]
     loser_data = elo_changes[loser_name]
 
@@ -239,34 +247,42 @@ def record_match(season_id, p1_name, p2_name, winner_name, elo_changes, win_reas
         # 1. Insert the match record
         cursor.execute("""
             INSERT INTO matches (
-                season_id, date, player1_name, player2_name, winner_name,
-                winner_elo_before, winner_elo_after, loser_elo_before, loser_elo_after, win_reason
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                season_id, date, doubles_match,
+                player1_name, player1b_name, player2_name, player2b_name,
+                player1_elo_before, player1_elo_after, player1b_elo_before, player1b_elo_after,
+                player2_elo_before, player2_elo_after, player2b_elo_before, player2b_elo_after,
+                winner
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            season_id, datetime.now().isoformat(), p1_name, p2_name, winner_name,
-            winner_data['elo_before'], winner_data['elo_after'],
-            loser_data['elo_before'], loser_data['elo_after'],
-            win_reason
+            season_id, datetime.now().isoformat(), int(doubles_match),
+            p1_name, p1b_name, p2_name, p2b_name,
+            winner_data['elo_before'] if winner_int == 1 else loser_data['elo_before'],
+            winner_data['elo_after'] if winner_int == 1 else loser_data['elo_after'],
+            p1b_elo_before, p1b_elo_after,
+            loser_data['elo_before'] if winner_int == 1 else winner_data['elo_before'],
+            loser_data['elo_after'] if winner_int == 1 else winner_data['elo_after'],
+            p2b_elo_before, p2b_elo_after,
+            winner_int
         ))
-        
-        # 2. Update winner's stats
+
+        # Update winner's stats
         cursor.execute("""
             UPDATE players SET current_elo = ?, current_wins = ?, total_lifetime_games = ?
             WHERE name = ?
         """, (
-            winner_data['elo_after'], winner_data['wins_after'],
-            winner_data['lifetime_games_after'], winner_name
+            winner_data['elo_after'], winner_data.get('wins_after', 0),
+            winner_data.get('lifetime_games_after', 0), winner_name
         ))
 
-        # 3. Update loser's stats
+        # Update loser's stats
         cursor.execute("""
             UPDATE players SET current_elo = ?, current_losses = ?, total_lifetime_games = ?
             WHERE name = ?
         """, (
-            loser_data['elo_after'], loser_data['losses_after'],
-            loser_data['lifetime_games_after'], loser_name
+            loser_data['elo_after'], loser_data.get('losses_after', 0),
+            loser_data.get('lifetime_games_after', 0), loser_name
         ))
-        
+
         conn.commit()
     except Exception as e:
         print(f"Database error: {e}")
@@ -336,44 +352,46 @@ def get_last_backup_time(backup_dir='backups'):
             continue
     return max(times) if times else None
 
+
+# --- Database Migration Manager ---
+# This function handles migrating the database schema and data from an old version to the current version.
+# It creates a backup before attempting migration, and rolls back if anything goes wrong.
+# Starting from the old version it finds in the dbinfo table, it applies each migration function in sequence until reaching the current version.
+
 def migrate_db(db_path):
     # Make a copy of the existing database before migration
     rollback_db = backup_database(db_path, backup_dir='backups', prefix='migration')
     try:
-        # Remove old database and initialize a new one
-        os.remove(db_path)
-        create_new_db()
-        # Migrate old data to the new schema
         conn = get_db_connection()
         try:
-            # DATABASE MIGRATION LOGIC
-            old_db_path = os.path.join('backups', rollback_db) if rollback_db else None
-            if not old_db_path or not os.path.exists(old_db_path):
-                print("No backup of old database found for migration.")
+            cursor = conn.cursor()
+            # Determine current version and handle non-existent dbinfo table
+            try:
+                cursor.execute("SELECT value FROM dbinfo WHERE key = 'version'") # This will fail if dbinfo doesn't exist
+                row = cursor.fetchone()
+                current_version = int(row['value'])
+            except:
+                current_version = 0 # dbinfo table doesn't exist, so version is 0  
+            print(f"Current DB version: {current_version}, Target version: {DB_VERSION}")
+            if current_version >= DB_VERSION:
+                print("Database is already up-to-date.")
                 return
-
-            old_conn = sqlite3.connect(old_db_path)
-            old_conn.row_factory = sqlite3.Row
-            old_cursor = old_conn.cursor()
-            new_cursor = conn.cursor()
-
-            # Get all tables except dbinfo
-            old_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='dbinfo'")
-            tables = [row['name'] for row in old_cursor.fetchall()]
-            for table in tables:
-                # Get columns
-                old_cursor.execute(f"PRAGMA table_info({table})")
-                columns = [col['name'] for col in old_cursor.fetchall()]
-                col_str = ', '.join(columns)
-                # Fetch all data
-                old_cursor.execute(f"SELECT {col_str} FROM {table}")
-                rows = old_cursor.fetchall()
-                for row in rows:
-                    placeholders = ', '.join(['?'] * len(columns))
-                    values = [row[col] for col in columns]
-                    new_cursor.execute(f"INSERT INTO {table} ({col_str}) VALUES ({placeholders})", values)
-            conn.commit()
-            old_conn.close()
+            # Import migration functions
+            import helper_scripts.db_migration_rules as migration_rules
+            # Apply migrations in sequence
+            for version in range(current_version, DB_VERSION):
+                next_version = version + 1
+                migrate_func_name = f"migrate_v{version}_to_v{next_version}"
+                migrate_func = getattr(migration_rules, migrate_func_name, None)
+                if migrate_func:
+                    print(f"Migrating from v{version} to v{next_version}...")
+                    migrate_func(conn)
+                    # Update the version in dbinfo table
+                    cursor.execute("INSERT OR REPLACE INTO dbinfo (key, value) VALUES ('version', ?)", (str(next_version),))
+                    conn.commit()
+                    print(f"Migration to v{next_version} completed.")
+                else:
+                    raise Exception(f"No migration function found for v{version} to v{next_version}")
             print("Database migration completed.")
         except Exception as e:
             raise e

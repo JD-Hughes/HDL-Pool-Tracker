@@ -103,19 +103,7 @@ class EloApp:
         self.p1_cb.bind("<<ComboboxSelected>>", update_winner_options)
         self.p2_cb.bind("<<ComboboxSelected>>", update_winner_options)
     
-        self.win_reasons = {
-            "Opponent potted 8-ball early": tk.BooleanVar(),
-            "Opponent fouled on 8-ball": tk.BooleanVar(),
-            "Opponent Conceded": tk.BooleanVar()
-        }
-    
-        ttk.Label(self.record_tab, text="Win Reason (optional):").grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=(10,0))
-        row_idx = 4
-        for label, var in self.win_reasons.items():
-            ttk.Checkbutton(self.record_tab, text=label, variable=var).grid(row=row_idx, column=0, columnspan=2, sticky="w", padx=20)
-            row_idx += 1
-    
-        ttk.Button(self.record_tab, text="Record Match", command=self.record_match).grid(row=row_idx, column=0, columnspan=2, pady=10)
+        ttk.Button(self.record_tab, text="Record Match", command=self.record_match).grid(row=3, column=0, columnspan=2, pady=10)
 
     def create_add_player_tab(self):
         self.add_player_tab = ttk.Frame(self.notebook)
@@ -180,7 +168,6 @@ class EloApp:
 
     def refresh_history(self):
         self.history_text.delete(1.0, tk.END)
-        #season_id = self.selected_season_id.get() # Uncomment if you want the history to depend on selected season (Elo graph screen)
         season_id = db.get_current_season()['id'] if db.get_current_season() else None # Use current season if available
         if not season_id:
             self.history_text.insert(tk.END, "Select a season to view history.")
@@ -193,12 +180,28 @@ class EloApp:
 
         for row in reversed(matches): # Show most recent first
             dt = datetime.fromisoformat(row["date"]).strftime("%Y-%m-%d %H:%M")
-            winner = row["winner_name"]
-            loser = row["player2_name"] if winner == row["player1_name"] else row["player1_name"]
-            win_elo_diff = row["winner_elo_after"] - row["winner_elo_before"]
-            lose_elo_diff = row["loser_elo_after"] - row["loser_elo_before"]
-            
-            line = f"{dt} | {winner:<15} def. {loser:<15} | {row['winner_elo_after']:>4} (+{win_elo_diff:<2}) / {row['loser_elo_after']:>4} ({lose_elo_diff:<3})\n"
+            # Determine winner/loser using new schema
+            if row.get("winner", -1) == 1:
+                winner = row["player1_name"]
+                loser = row["player2_name"]
+                win_elo_before = row["player1_elo_before"]
+                win_elo_after = row["player1_elo_after"]
+                lose_elo_before = row["player2_elo_before"]
+                lose_elo_after = row["player2_elo_after"]
+            elif row.get("winner", -1) == 2:
+                winner = row["player2_name"]
+                loser = row["player1_name"]
+                win_elo_before = row["player2_elo_before"]
+                win_elo_after = row["player2_elo_after"]
+                lose_elo_before = row["player1_elo_before"]
+                lose_elo_after = row["player1_elo_after"]
+            else:
+                winner = "?"
+                loser = "?"
+                win_elo_before = win_elo_after = lose_elo_before = lose_elo_after = 0
+            win_elo_diff = win_elo_after - win_elo_before
+            lose_elo_diff = lose_elo_after - lose_elo_before
+            line = f"{dt} | {winner:<15} def. {loser:<15} | {win_elo_after:>4} (+{win_elo_diff:<2}) / {lose_elo_after:>4} ({lose_elo_diff:<3})\n"
             self.history_text.insert(tk.END, line)
 
     def refresh_season_selector(self):
@@ -257,20 +260,25 @@ class EloApp:
 
         p1 = db.get_player_by_name(p1_name)
         p2 = db.get_player_by_name(p2_name)
-        loser_name = p2_name if winner_name == p1_name else p1_name
 
-        winner = p1 if winner_name == p1_name else p2
-        loser = p2 if winner_name == p1_name else p1
-        
-        # Determine K-factor based on TOTAL lifetime games
+        # Determine winner integer for new schema
+        if winner_name == p1_name:
+            winner_int = 1
+            winner = p1
+            loser = p2
+            loser_name = p2_name
+        else:
+            winner_int = 2
+            winner = p2
+            loser = p1
+            loser_name = p1_name
+
         k_winner = K_NEW_PLAYER if winner['total_lifetime_games'] < GAMES_NEW_PLAYER else K_FACTOR
         k_loser = K_NEW_PLAYER if loser['total_lifetime_games'] < GAMES_NEW_PLAYER else K_FACTOR
         k = max(k_winner, k_loser)
         
         # Calculate new Elo
         winner_elo_new, loser_elo_new = update_elo(winner['current_elo'], loser['current_elo'], k)
-
-        win_reason = "; ".join(reason for reason, var in self.win_reasons.items() if var.get()) or "Won normally"
 
         # Prepare data bundle for database
         elo_changes = {
@@ -286,12 +294,14 @@ class EloApp:
             }
         }
 
-        # Record match in database
-        db.record_match(current_season['id'], p1_name, p2_name, winner_name, elo_changes, win_reason)
+        # Record match in database (update to pass winner_int for new schema)
+        # If you add doubles support, update this call accordingly
+        db.record_match(current_season['id'], p1_name, p2_name, winner_int, elo_changes)
 
         # Show summary
         winner_elo_diff = winner_elo_new - winner['current_elo']
         loser_elo_diff = loser_elo_new - loser['current_elo']
+        loser_name = p2_name if winner_name == p1_name else p1_name
         summary = (
             f"{winner_name} def. {loser_name}\n"
             f"{winner_name}: {winner_elo_new} (+{winner_elo_diff})\n"
@@ -301,7 +311,6 @@ class EloApp:
         messagebox.showinfo("Match Recorded", summary)
         
         # Reset form and refresh UI
-        for var in self.win_reasons.values(): var.set(False)
         self.refresh_all_views()
 
     def plot_elo_graph(self):
@@ -319,20 +328,17 @@ class EloApp:
         for match in matches:
             players_in_season.add(match['player1_name'])
             players_in_season.add(match['player2_name'])
-        
-        # Build elo history timeline from matches
-        elo_data = {p: [] for p in players_in_season}
-        # Initialize with starting Elo (Otherwise first match jumps to first recorded Elo)
-        for p in players_in_season:
-            elo_data[p].append(db.INITIAL_ELO)
+
+        # Build elo history timeline from matches (using new schema)
+        elo_data = {p: [db.INITIAL_ELO] for p in players_in_season}
         for match in matches:
             temp_elos = {p: elo_data[p][-1] if elo_data[p] else db.INITIAL_ELO for p in players_in_season}
-            
-            winner, loser = match['winner_name'], match['player1_name'] if match['winner_name'] == match['player2_name'] else match['player2_name']
-            
-            temp_elos[winner] = match['winner_elo_after']
-            temp_elos[loser] = match['loser_elo_after']
-
+            if match.get('winner', -1) == 1:
+                temp_elos[match['player1_name']] = match['player1_elo_after']
+                temp_elos[match['player2_name']] = match['player2_elo_after']
+            elif match.get('winner', -1) == 2:
+                temp_elos[match['player2_name']] = match['player2_elo_after']
+                temp_elos[match['player1_name']] = match['player1_elo_after']
             for p in players_in_season:
                 elo_data[p].append(temp_elos[p])
 
@@ -348,7 +354,7 @@ class EloApp:
         # --- Matplotlib Plotting ---
         fig = Figure(figsize=(8, 5), dpi=100)
         ax = fig.add_subplot(111)
-        
+
         for player, elos in elo_to_plot.items():
             ax.plot(range(len(elos)), elos, label=player)
 
