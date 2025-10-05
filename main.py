@@ -39,7 +39,17 @@ class EloApp:
         self.graphTab.refresh_season_selector() # This will trigger graph/history refresh
         self.historyTab.refresh_history()
 
-    # --- Core Functionality Methods ---
+
+# Handle resource path for PyInstaller
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    import os, sys
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
     
 
@@ -59,7 +69,7 @@ if __name__ == "__main__":
 
     # Run the Tkinter application
     root = tk.Tk()
-    icon = tk.PhotoImage(file="assets/8-ball.png")
+    icon = tk.PhotoImage(file="img/8-ball.png")
     root.iconphoto(True, icon)
     root.geometry("800x600")
     app = EloApp(root)
