@@ -1,1 +1,1 @@
-python -m PyInstaller --noconfirm --windowed --onefile --add-data="img/8-ball.png" --icon="img/8-ball-icon.ico" "main.py"
+python -m PyInstaller --noconfirm --windowed --onefile --add-data="img/8-ball.png;img" --icon="img/8-ball-icon.ico" "main.py"
