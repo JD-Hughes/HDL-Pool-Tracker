@@ -5,6 +5,7 @@ import shutil
 
 DB_FILE = "elo_tracker.db"
 INITIAL_ELO = 1200
+DB_VERSION = 1
 
 # --- Database Initialization ---
 
@@ -14,12 +15,47 @@ def init_db():
     Creates a default season if no seasons are present.
     """
     if os.path.exists(DB_FILE):
-        return # Assume it's already initialized
+        # Check database schema version
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM dbinfo WHERE key = 'version'")
+            row = cursor.fetchone()
+            if row:
+                current_version = int(row['value'])
+            else:
+                current_version = 0
+        except:
+            current_version = 0 # dbinfo table doesn't exist
+        finally:
+            conn.close()
+        if current_version != DB_VERSION:
+            migrate_db(DB_FILE)
+        return # Assume it's already initialized and up-to-date
+    
+    create_new_db()
+    conn = get_db_connection()
+    try:
+        # Create a default first season
+        start_new_season(f"Season started {datetime.now().strftime('%Y-%m-%d')}")
+        print("Default season created.")
 
+    finally:
+        conn.close()
+
+def create_new_db():
     print("First run: Creating new database...")
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
+
+        cursor.execute("""
+            CREATE TABLE dbinfo (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        cursor.execute("INSERT INTO dbinfo (key, value) VALUES (?, ?)", ("version", str(DB_VERSION)))
         
         # Seasons Table: Stores the name of each season
         cursor.execute("""
@@ -62,14 +98,8 @@ def init_db():
         
         conn.commit()
         print("Database tables created.")
-
-        # Create a default first season
-        start_new_season(f"Season started {datetime.now().strftime('%Y-%m-%d')}")
-        print("Default season created.")
-
     finally:
         conn.close()
-
 
 def get_db_connection():
     """Returns a database connection object."""
@@ -303,3 +333,57 @@ def get_last_backup_time(backup_dir='backups'):
         except Exception:
             continue
     return max(times) if times else None
+
+def migrate_db(db_path):
+    # Make a copy of the existing database before migration
+    rollback_db = backup_database(db_path, backup_dir='backups', prefix='migration')
+    try:
+        # Remove old database and initialize a new one
+        os.remove(db_path)
+        create_new_db()
+        # Migrate old data to the new schema
+        conn = get_db_connection()
+        try:
+            # DATABASE MIGRATION LOGIC
+            old_db_path = os.path.join('backups', rollback_db) if rollback_db else None
+            if not old_db_path or not os.path.exists(old_db_path):
+                print("No backup of old database found for migration.")
+                return
+
+            old_conn = sqlite3.connect(old_db_path)
+            old_conn.row_factory = sqlite3.Row
+            old_cursor = old_conn.cursor()
+            new_cursor = conn.cursor()
+
+            # Get all tables except dbinfo
+            old_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='dbinfo'")
+            tables = [row['name'] for row in old_cursor.fetchall()]
+            for table in tables:
+                # Get columns
+                old_cursor.execute(f"PRAGMA table_info({table})")
+                columns = [col['name'] for col in old_cursor.fetchall()]
+                col_str = ', '.join(columns)
+                # Fetch all data
+                old_cursor.execute(f"SELECT {col_str} FROM {table}")
+                rows = old_cursor.fetchall()
+                for row in rows:
+                    placeholders = ', '.join(['?'] * len(columns))
+                    values = [row[col] for col in columns]
+                    new_cursor.execute(f"INSERT INTO {table} ({col_str}) VALUES ({placeholders})", values)
+            conn.commit()
+            old_conn.close()
+            print("Database migration completed.")
+        except Exception as e:
+            raise e
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"Database migration failed: {e}")
+        # If migration fails, restore from backup (rollback_db)
+        os.remove(db_path)
+        if rollback_db:
+            shutil.copy2(os.path.join('backups', rollback_db), db_path)
+            print("Database restored from backup.")
+        else:
+            print("No backup available to restore automatically. Check backup directory.")
+        raise
