@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 # --- Imports ---
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -62,7 +59,8 @@ if __name__ == "__main__":
 
     # Run the Tkinter application
     root = tk.Tk()
-    #root.iconbitmap("assets/8-ball-icon.ico") #TODO: Fix this (No icon showing in MacOS and PyInstaller build issues)
+    icon = tk.PhotoImage(file="assets/8-ball.png")
+    root.iconphoto(True, icon)
     root.geometry("800x600")
     app = EloApp(root)
     root.mainloop()
