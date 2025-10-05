@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # Run the Tkinter application
     root = tk.Tk()
-    icon = tk.PhotoImage(file="img/8-ball.png")
+    icon = tk.PhotoImage(file=resource_path("img/8-ball.png"))
     root.iconphoto(True, icon)
     root.geometry("800x600")
     app = EloApp(root)
