@@ -121,6 +121,11 @@ def migrate_v1_to_v2(dbconn):
     cursor.execute("COMMIT;")
     cursor.execute("PRAGMA foreign_keys=on;")
 
+    # Add archive column to players table
+    cursor.execute("ALTER TABLE players ADD COLUMN archive BOOLEAN NOT NULL DEFAULT 0;")
+    # Update existing records to set archive to 0 (false)
+    cursor.execute("UPDATE players SET archive = 0 WHERE archive IS NULL;")
+
     # Update db_version to 2
     cursor.execute("UPDATE dbinfo SET value = '2' WHERE key = 'db_version';")
     dbconn.commit()

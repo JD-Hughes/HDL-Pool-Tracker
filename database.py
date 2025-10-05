@@ -74,7 +74,8 @@ def create_new_db():
                 current_elo INTEGER NOT NULL,
                 current_wins INTEGER NOT NULL,
                 current_losses INTEGER NOT NULL,
-                total_lifetime_games INTEGER NOT NULL
+                total_lifetime_games INTEGER NOT NULL,
+                archive BOOLEAN NOT NULL DEFAULT 0
             )
         """)
 
@@ -170,7 +171,8 @@ def get_leaderboard_players():
     try:
         players = conn.execute("""
             SELECT name, current_elo, current_wins, current_losses 
-            FROM players 
+            FROM players
+            WHERE archive = 0 
             ORDER BY current_elo DESC
         """).fetchall()
         return [dict(p) for p in players]
@@ -181,7 +183,7 @@ def get_all_player_names():
     """Returns a simple list of all player names."""
     conn = get_db_connection()
     try:
-        names = conn.execute("SELECT name FROM players ORDER BY name").fetchall()
+        names = conn.execute("SELECT name FROM players WHERE archive = 0 ORDER BY name").fetchall()
         return [row['name'] for row in names]
     finally:
         conn.close()
@@ -219,6 +221,17 @@ def delete_player(name):
         cursor.execute("DELETE FROM matches WHERE player1_name = ? OR player2_name = ?", (name, name))
         # Delete the player record
         cursor.execute("DELETE FROM players WHERE name = ?", (name,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def archive_player(name):
+    """Archives a player, preventing them from appearing in active lists."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        # Set the archive flag to true
+        cursor.execute("UPDATE players SET archive = 1 WHERE name = ?", (name,))
         conn.commit()
     finally:
         conn.close()

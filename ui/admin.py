@@ -9,6 +9,7 @@ class AdminTab:
         parent.add(self.admin_tab, text="Admin")
         ttk.Button(self.admin_tab, text="Start New Season", command=self.start_new_season).pack(pady=10)
         ttk.Button(self.admin_tab, text="Delete Player", command=self.delete_player).pack(pady=10)
+        ttk.Button(self.admin_tab, text="Archive Player", command=self.archive_player).pack(pady=10)
         ttk.Button(self.admin_tab, text="Backup Database", command=self.backup_database_ui).pack(pady=10)
 
         # Add Player UI
@@ -32,6 +33,20 @@ class AdminTab:
                 db.start_new_season(season_name)
                 messagebox.showinfo("Success", f"New season '{season_name}' has started!")
                 self.app.refresh_all_views()
+
+    def archive_player(self):
+        name = simpledialog.askstring("Archive Player", "Enter the exact player name to archive:")
+        if not name:
+            return
+
+        player = db.get_player_by_name(name)
+        if player:
+            if messagebox.askyesno("Confirm Archive", f"Are you sure you want to archive '{name}'?\nThey will be removed from active player lists but their match history will be retained."):
+                db.archive_player(name)
+                messagebox.showinfo("Archived", f"Player '{name}' has been archived.")
+                self.app.refresh_all_views()
+        else:
+            messagebox.showerror("Not Found", f"Player '{name}' not found.")
 
     def delete_player(self):
         name = simpledialog.askstring("Delete Player", "Enter the exact player name to delete:")
