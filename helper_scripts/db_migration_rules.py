@@ -25,6 +25,7 @@ def migrate_v1_to_v2(dbconn):
     # - Transfer existing ELO data to new columns if applicable
     # - Remove old ELO columns and win_reason column
     # - Replaced winner_name with winner column which represents the team (player1 or player2)
+    # - Add archive column to players table
     # - Update db_version to 2
 
     cursor = dbconn.cursor()
