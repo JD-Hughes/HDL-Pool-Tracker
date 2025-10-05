@@ -315,6 +315,9 @@ class EloApp:
         
         # Build elo history timeline from matches
         elo_data = {p: [] for p in players_in_season}
+        # Initialize with starting Elo (Otherwise first match jumps to first recorded Elo)
+        for p in players_in_season:
+            elo_data[p].append(db.INITIAL_ELO)
         for match in matches:
             temp_elos = {p: elo_data[p][-1] if elo_data[p] else db.INITIAL_ELO for p in players_in_season}
             
