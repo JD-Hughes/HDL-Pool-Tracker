@@ -64,22 +64,37 @@ class GraphTab:
         if not matches:
             return
 
-        # Get all unique players in this season's matches
+        # Get all unique players in this season's matches (including doubles)
         players_in_season = set()
         for match in matches:
             players_in_season.add(match['player1_name'])
             players_in_season.add(match['player2_name'])
+            if match.get('doubles_match', 0):
+                if match.get('player1b_name'):
+                    players_in_season.add(match['player1b_name'])
+                if match.get('player2b_name'):
+                    players_in_season.add(match['player2b_name'])
 
         # Build elo history timeline from matches (using new schema)
         elo_data = {p: [db.INITIAL_ELO] for p in players_in_season}
         for match in matches:
             temp_elos = {p: elo_data[p][-1] if elo_data[p] else db.INITIAL_ELO for p in players_in_season}
-            if match.get('winner', -1) == 1:
+            if match.get('doubles_match', 0):
+                # Doubles match: update all four players
                 temp_elos[match['player1_name']] = match['player1_elo_after']
                 temp_elos[match['player2_name']] = match['player2_elo_after']
-            elif match.get('winner', -1) == 2:
-                temp_elos[match['player2_name']] = match['player2_elo_after']
-                temp_elos[match['player1_name']] = match['player1_elo_after']
+                if match.get('player1b_name') and match.get('player1b_elo_after') is not None:
+                    temp_elos[match['player1b_name']] = match['player1b_elo_after']
+                if match.get('player2b_name') and match.get('player2b_elo_after') is not None:
+                    temp_elos[match['player2b_name']] = match['player2b_elo_after']
+            else:
+                # Singles match
+                if match.get('winner', -1) == 1:
+                    temp_elos[match['player1_name']] = match['player1_elo_after']
+                    temp_elos[match['player2_name']] = match['player2_elo_after']
+                elif match.get('winner', -1) == 2:
+                    temp_elos[match['player2_name']] = match['player2_elo_after']
+                    temp_elos[match['player1_name']] = match['player1_elo_after']
             for p in players_in_season:
                 elo_data[p].append(temp_elos[p])
 
