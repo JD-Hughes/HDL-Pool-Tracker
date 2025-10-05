@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 import os
+import shutil
 
 DB_FILE = "elo_tracker.db"
 INITIAL_ELO = 1200
@@ -253,16 +254,52 @@ def get_matches_for_season(season_id):
     finally:
         conn.close()
 
-def backup_database(backup_file):
-    """Creates a backup copy of the current database."""
-    # Check if backup directory exists
-    backup_dir = os.path.dirname(backup_file)
-    if backup_dir and not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-    if os.path.exists(DB_FILE):
-        import shutil
-        shutil.copyfile(DB_FILE, backup_file)
-        print(f"Database backed up to '{backup_file}'")
-    else:
-        print("No database file found to back up.")
-    
+
+def backup_database(db_path=DB_FILE, backup_dir='backups', prefix=None):
+    """
+    Creates a backup of the database file.
+    Args:
+        db_path (str): Path to the database file.
+        backup_dir (str): Directory to store backups. Defaults to 'backups'.
+        prefix (str, optional): Prefix for backup filename. If None, uses 'backup-YYYYMMDD-HHMMSS'.
+    Returns:
+        str: The name of the backup file created, or None if failed.
+    """
+    try:
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        if prefix:
+            backup_name = f"{prefix}-{timestamp}.db"
+        else:
+            backup_name = f"backup-{timestamp}.db"
+        backup_path = os.path.join(backup_dir, backup_name)
+        shutil.copy2(db_path, backup_path)
+        print(f"Backup created: {backup_path}")
+        return backup_name
+    except Exception as e:
+        print(f"Failed to backup database: {e}")
+        return None
+
+def get_last_backup_time(backup_dir='backups'):
+    """
+    Returns the datetime of the most recent backup file in the backup_dir, or None if none exist.
+    """
+    if not os.path.exists(backup_dir):
+        return None
+    files = [f for f in os.listdir(backup_dir) if f.endswith('.db')]
+    if not files:
+        return None
+    # Extract timestamp from filename (assumes format: prefix-YYYYMMDD-HHMMSS.db or backup-YYYYMMDD-HHMMSS.db)
+    times = []
+    for fname in files:
+        try:
+            parts = fname.split('-')
+            if len(parts) >= 3:
+                # e.g. backup-20251005-153000.db or customprefix-20251005-153000.db
+                date_str = parts[-2] + '-' + parts[-1].split('.')[0] # YYYYMMDD-HHMMSS
+                dt = datetime.strptime(date_str, '%Y%m%d-%H%M%S')
+                times.append(dt)
+        except Exception:
+            continue
+    return max(times) if times else None

@@ -157,6 +157,15 @@ class EloApp:
         self.notebook.add(self.admin_tab, text="Admin")
         ttk.Button(self.admin_tab, text="Start New Season", command=self.start_new_season).pack(pady=10)
         ttk.Button(self.admin_tab, text="Delete Player", command=self.delete_player).pack(pady=10)
+        ttk.Button(self.admin_tab, text="Backup Database", command=self.backup_database_ui).pack(pady=10)
+
+    def backup_database_ui(self):
+            prefix = simpledialog.askstring("Backup Database", "Enter a prefix for the backup file (optional):")
+            backup_name = db.backup_database(prefix=prefix if prefix else None)
+            if backup_name:
+                messagebox.showinfo("Backup Successful", f"Database backed up as: backups/{backup_name}")
+            else:
+                messagebox.showerror("Backup Failed", "Database backup failed. See console for details.")
 
     # --- Data Handling and UI Refresh Methods ---
 
@@ -395,7 +404,17 @@ class EloApp:
 if __name__ == "__main__":
     # Initialize the database first if it doesn't exist
     db.init_db()
-    
+
+    # Auto-backup if last backup is older than 24 hours
+    try:
+        last_backup = db.get_last_backup_time('backups')
+        now = datetime.now()
+        if (not last_backup) or ((now - last_backup).total_seconds() > 86400):
+            db.backup_database()
+    except Exception as e:
+        print(f"Auto-backup check failed: {e}")
+        messagebox.showinfo("Backup Failed", f"Auto-backup check failed: {e}")
+
     # Run the Tkinter application
     root = tk.Tk()
     #root.iconbitmap("assets/8-ball-icon.ico") #TODO: Fix this (No icon showing in MacOS and PyInstaller build issues)
