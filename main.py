@@ -249,8 +249,6 @@ class EloApp:
         if not all([p1_name, p2_name, winner_name]) or p1_name == p2_name or winner_name not in [p1_name, p2_name]:
             messagebox.showerror("Invalid Input", "Select two different players and a valid winner.")
             return
-        
-        #self.maybe_create_backup() #TODO: Uncomment when backup logic is implemented
 
         current_season = db.get_current_season()
         if not current_season:
