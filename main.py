@@ -390,17 +390,6 @@ class EloApp:
             messagebox.showerror("Not Found", f"Player '{name}' not found.")
 
 
-    #TODO: Implement automatic backup logic here
-    # def maybe_create_backup(self):
-    #     #last_match_time = datetime.fromisoformat(self.history.iloc[-1]["Date"])
-    #     last_match_time = db.get_matches_for_season(self.selected_season_id.get())[-1]["date"]
-    #     now = datetime.now()
-    #     if (now - last_match_time).days >= 1:
-    #         timestamp = now.strftime("%Y-%m-%d_%H-%M")
-    #         db.backup_database(f"Backup Data/database_{timestamp}.db")
-    #         print(f"Backup created: {timestamp}")
-
-
 if __name__ == "__main__":
     # Initialize the database first if it doesn't exist
     db.init_db()
