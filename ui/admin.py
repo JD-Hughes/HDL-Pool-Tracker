@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, font
 import database as db
 
 class AdminTab:
@@ -7,6 +7,7 @@ class AdminTab:
         self.app = app
         self.admin_tab = ttk.Frame(parent)
         parent.add(self.admin_tab, text="Admin")
+        ttk.Checkbutton(self.admin_tab, text="Enable Tablet Mode", command=self.toggle_tablet_mode).pack(pady=10)
         ttk.Button(self.admin_tab, text="Start New Season", command=self.start_new_season).pack(pady=10)
         ttk.Button(self.admin_tab, text="Delete Player", command=self.delete_player).pack(pady=10)
         ttk.Button(self.admin_tab, text="Archive Player", command=self.archive_player).pack(pady=10)
@@ -84,3 +85,12 @@ class AdminTab:
         if messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete the last recorded match? This action cannot be undone."):
             db.delete_last_match(season['id'])
             self.app.refresh_all_views()
+
+    # Toggle Tablet Mode: Makes UI larger for tablet use
+    def toggle_tablet_mode(self):
+        current_size = font.nametofont("TkDefaultFont").cget("size")
+        new_size = 24 if current_size == 10 else 10
+        default_font = font.nametofont("TkDefaultFont")
+        default_font.configure(size=new_size)
+        self.app.root.option_add("*Font", default_font)
+        print(f"Default font size changed to: {new_size}")

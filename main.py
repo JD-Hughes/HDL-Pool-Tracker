@@ -1,7 +1,8 @@
 # --- Imports ---
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, font
 from datetime import datetime
+import sv_ttk
 
 # Import local modules
 import database as db
@@ -20,6 +21,18 @@ class EloApp:
         # --- Main UI Setup ---
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # Apply sv_ttk theme
+        self.root.style = ttk.Style()
+        sv_ttk.set_theme("dark")  # Available themes: "light", "dark", "light_blue", "dark_blue"
+
+        # Set default font size (to handle tablet mode toggling)
+        default_font = font.nametofont("TkDefaultFont")
+        default_font.configure(size=10)
+        self.root.option_add("*Font", default_font) # Set default font size
+
+        # Configure button style (to handle larger fonts in tablet mode)
+        self.root.style.configure ("TButton", padding=(10,5), font=("TkDefaultFont"))
 
         self.leaderboardTab = leaderboard.LeaderboardTab(self.notebook, self) # Create leaderboard tab instance
         self.recordTab = record.RecordTab(self.notebook, self) # Create record tab instance

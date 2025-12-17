@@ -16,6 +16,10 @@ class LeaderboardTab:
     
         self.leaderboard_tree.pack(fill='both', expand=True)
 
+        # Handle larger font sizes and stop them from cutting off text.
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=30)
+
     def refresh_leaderboard(self):
         for row in self.leaderboard_tree.get_children():
             self.leaderboard_tree.delete(row)

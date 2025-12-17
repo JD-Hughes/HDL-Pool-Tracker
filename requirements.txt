@@ -1,3 +1,4 @@
 pandas
 matplotlib
 pyinstaller
+sv-ttk
