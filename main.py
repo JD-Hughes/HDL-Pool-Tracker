@@ -51,8 +51,6 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-    
-
 if __name__ == "__main__":
     # Initialize the database first if it doesn't exist
     db.init_db()

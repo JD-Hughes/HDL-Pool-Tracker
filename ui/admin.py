@@ -11,6 +11,7 @@ class AdminTab:
         ttk.Button(self.admin_tab, text="Delete Player", command=self.delete_player).pack(pady=10)
         ttk.Button(self.admin_tab, text="Archive Player", command=self.archive_player).pack(pady=10)
         ttk.Button(self.admin_tab, text="Backup Database", command=self.backup_database_ui).pack(pady=10)
+        ttk.Button(self.admin_tab, text="Delete Last Match", command=self.delete_last_match).pack(pady=10)
 
         # Add Player UI
         ttk.Label(self.admin_tab, text="Add New Player:").pack(pady=(20, 5))
@@ -74,3 +75,12 @@ class AdminTab:
         messagebox.showinfo("Added", f"Player '{name}' has been added.")
         self.new_player_entry.delete(0, tk.END)
         self.app.refresh_all_views()
+
+    def delete_last_match(self):
+        season = db.get_current_season()
+        if not season:
+            messagebox.showerror("Error", "No active season found.")
+            return
+        if messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete the last recorded match? This action cannot be undone."):
+            db.delete_last_match(season['id'])
+            self.app.refresh_all_views()

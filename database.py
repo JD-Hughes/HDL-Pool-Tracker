@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 import os
 import shutil
+from tkinter import messagebox
 
 DB_FILE = "elo_tracker.db"
 INITIAL_ELO = 1200
@@ -315,6 +316,65 @@ def get_matches_for_season(season_id):
     finally:
         conn.close()
 
+def delete_last_match(season_id):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        # Find the last match for the given season
+        last_match = cursor.execute(
+            "SELECT * FROM matches WHERE season_id = ? ORDER BY date DESC LIMIT 1",
+            (season_id,)
+        ).fetchone()
+        if not last_match:
+            return False # No match to delete
+        
+        # Check if doubles match
+        if last_match['doubles_match']:
+            messagebox.showerror("Error", "Cannot delete last match: Doubles match deletion not supported. Must be handled manually.")
+            return False
+
+        # Reverse the stats update for both players
+        p1_name = last_match['player1_name']
+        p2_name = last_match['player2_name']
+        winner_int = last_match['winner']
+
+        # Determine winner and loser names
+        loser_name = p2_name if winner_int == 1 else p1_name
+        winner_name = p1_name if winner_int == 1 else p2_name
+
+        # Fetch current stats
+        winner = get_player_by_name(winner_name)
+        loser = get_player_by_name(loser_name)
+
+        # Revert winner stats
+        new_winner_elo = last_match['player1_elo_before'] if winner_int == 1 else last_match['player2_elo_before']
+        new_winner_wins = winner['current_wins'] - 1
+        new_winner_lifetime_games = winner['total_lifetime_games'] - 1
+
+        # Revert loser stats
+        new_loser_elo = last_match['player2_elo_before'] if winner_int == 1 else last_match['player1_elo_before']
+        new_loser_losses = loser['current_losses'] - 1
+        new_loser_lifetime_games = loser['total_lifetime_games'] - 1
+
+        # Update players' stats
+        cursor.execute("""
+            UPDATE players SET current_elo = ?, current_wins = ?, total_lifetime_games = ?
+            WHERE name = ?
+        """, (new_winner_elo, new_winner_wins, new_winner_lifetime_games, winner_name))
+
+        cursor.execute("""
+            UPDATE players SET current_elo = ?, current_losses = ?, total_lifetime_games = ?
+            WHERE name = ?
+        """, (new_loser_elo, new_loser_losses, new_loser_lifetime_games, loser_name))
+
+        # Delete the match record
+        cursor.execute("DELETE FROM matches WHERE id = ?", (last_match['id'],))
+
+        conn.commit()
+        messagebox.showinfo("Deleted", "The last recorded match has been deleted.")
+        return True
+    finally:
+        conn.close()
 
 def backup_database(db_path=DB_FILE, backup_dir='backups', prefix=None):
     """
