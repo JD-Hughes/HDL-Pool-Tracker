@@ -13,12 +13,7 @@ class AdminTab:
         ttk.Button(self.admin_tab, text="Archive Player", command=self.archive_player).pack(pady=10)
         ttk.Button(self.admin_tab, text="Backup Database", command=self.backup_database_ui).pack(pady=10)
         ttk.Button(self.admin_tab, text="Delete Last Match", command=self.delete_last_match).pack(pady=10)
-
-        # Add Player UI
-        ttk.Label(self.admin_tab, text="Add New Player:").pack(pady=(20, 5))
-        self.new_player_entry = ttk.Entry(self.admin_tab, width=30)
-        self.new_player_entry.pack(pady=5)
-        ttk.Button(self.admin_tab, text="Add Player", command=self.add_new_player).pack(pady=5)
+        ttk.Button(self.admin_tab, text="Add Player", command=self.add_new_player).pack(pady=10)
 
     def backup_database_ui(self):
         prefix = simpledialog.askstring("Backup Database", "Enter a prefix for the backup file (optional):")
@@ -30,6 +25,7 @@ class AdminTab:
 
     def start_new_season(self):
         season_name = simpledialog.askstring("New Season", "Enter the name for the new season (e.g., 'Winter 2025'):")
+        #TODO: Check if season already exists. Otherwise SQL unique ID error
         if season_name:
             if messagebox.askyesno("Confirm", f"Are you sure you want to start season '{season_name}'?\nThis will reset all current Elo scores and stats."):
                 db.start_new_season(season_name)
@@ -65,7 +61,7 @@ class AdminTab:
             messagebox.showerror("Not Found", f"Player '{name}' not found.")
 
     def add_new_player(self):
-        name = self.new_player_entry.get().strip()
+        name = simpledialog.askstring("Add Player", "Enter the player name to add:")
         if not name:
             messagebox.showerror("Error", "Player name cannot be empty.")
             return
@@ -74,7 +70,6 @@ class AdminTab:
             return
         db.add_player(name)
         messagebox.showinfo("Added", f"Player '{name}' has been added.")
-        self.new_player_entry.delete(0, tk.END)
         self.app.refresh_all_views()
 
     def delete_last_match(self):
@@ -89,7 +84,7 @@ class AdminTab:
     # Toggle Tablet Mode: Makes UI larger for tablet use
     def toggle_tablet_mode(self):
         current_size = font.nametofont("TkDefaultFont").cget("size")
-        new_size = 24 if current_size == 10 else 10
+        new_size = 18 if current_size == 10 else 10
         default_font = font.nametofont("TkDefaultFont")
         default_font.configure(size=new_size)
         self.app.root.option_add("*Font", default_font)

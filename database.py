@@ -210,11 +210,12 @@ def add_player(name):
             VALUES (?, ?, 0, 0, 0)
         """, (name, INITIAL_ELO))
         conn.commit()
+        print(f"Player {name} added")
     finally:
         conn.close()
 
 def delete_player(name):
-    """Deletes a player and all their associated matches from the database."""
+    #Deletes a player and all their associated matches from the database
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -223,6 +224,7 @@ def delete_player(name):
         # Delete the player record
         cursor.execute("DELETE FROM players WHERE name = ?", (name,))
         conn.commit()
+        print(f"Player {name} deleted")
     finally:
         conn.close()
 
@@ -234,6 +236,7 @@ def archive_player(name):
         # Set the archive flag to true
         cursor.execute("UPDATE players SET archive = 1 WHERE name = ?", (name,))
         conn.commit()
+        print(f"Payer {name} archived")
     finally:
         conn.close()
 
@@ -371,6 +374,7 @@ def delete_last_match(season_id):
         cursor.execute("DELETE FROM matches WHERE id = ?", (last_match['id'],))
 
         conn.commit()
+        print(f"Match {last_match['id']} deleted between {p1_name} and {p2_name}")
         messagebox.showinfo("Deleted", "The last recorded match has been deleted.")
         return True
     finally:

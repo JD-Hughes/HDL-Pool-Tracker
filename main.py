@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, font
 from datetime import datetime
 import sv_ttk
+import os
+import sys
 
 # Import local modules
 import database as db
@@ -44,7 +46,7 @@ class EloApp:
         self.refresh_all_views()
 
     def refresh_all_views(self):
-        """Master function to refresh all data-driven UI components."""
+        # Master function to refresh all data-driven UI component
         print("Refreshing all views...")
         
         self.recordTab.refresh_player_selectors()
@@ -52,11 +54,24 @@ class EloApp:
         self.graphTab.refresh_season_selector() # This will trigger graph/history refresh
         self.historyTab.refresh_history()
 
+        # Do a backup check
+        auto_backup()
+
+
+def auto_backup():
+    # Auto-backup if last backup is older than 24 hours
+    try:
+        last_backup = db.get_last_backup_time('backups')
+        now = datetime.now()
+        if (not last_backup) or ((now - last_backup).total_seconds() > 86400):
+            db.backup_database()
+    except Exception as e:
+        print(f"Auto-backup check failed: {e}")
+        messagebox.showinfo("Backup Failed", f"Auto-backup check failed: {e}")
 
 # Handle resource path for PyInstaller
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    import os, sys
+    # Get absolute path to resource, for PyInstaller
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -67,16 +82,6 @@ def resource_path(relative_path):
 if __name__ == "__main__":
     # Initialize the database first if it doesn't exist
     db.init_db()
-
-    # Auto-backup if last backup is older than 24 hours
-    try:
-        last_backup = db.get_last_backup_time('backups')
-        now = datetime.now()
-        if (not last_backup) or ((now - last_backup).total_seconds() > 86400):
-            db.backup_database()
-    except Exception as e:
-        print(f"Auto-backup check failed: {e}")
-        messagebox.showinfo("Backup Failed", f"Auto-backup check failed: {e}")
 
     # Run the Tkinter application
     root = tk.Tk()
