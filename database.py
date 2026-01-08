@@ -180,11 +180,20 @@ def get_leaderboard_players():
     finally:
         conn.close()
 
-def get_all_player_names():
-    """Returns a simple list of all player names."""
+def get_all_player_names(season_id=None):
+    # Returns a simple list of all player names in a season, if no season specified, all players (including archived)
     conn = get_db_connection()
     try:
-        names = conn.execute("SELECT name FROM players WHERE archive = 0 ORDER BY name").fetchall()
+        if season_id is not None:
+            # Select all unique player names from matches in the given season
+            names = conn.execute("""
+                SELECT DISTINCT p.name FROM players p
+                JOIN matches m ON (p.name = m.player1_name OR p.name = m.player2_name)
+                WHERE m.season_id = ? AND p.archive = 0
+                ORDER BY p.name
+            """, (season_id,)).fetchall()
+        else:
+            names = conn.execute("SELECT name FROM players ORDER BY name").fetchall()
         return [row['name'] for row in names]
     finally:
         conn.close()
@@ -379,6 +388,25 @@ def delete_last_match(season_id):
         return True
     finally:
         conn.close()
+
+# --- Statistics ---
+
+def get_head_to_head_wins(player_a, player_b, season_id):
+    """Returns the number of wins player_a has over player_b in the given season."""
+    conn = get_db_connection()
+    try:
+        wins = conn.execute("""
+            SELECT COUNT(*) as win_count
+            FROM matches
+            WHERE season_id = ?
+              AND ((player1_name = ? AND player2_name = ? AND winner = 1)
+                   OR (player1_name = ? AND player2_name = ? AND winner = 2))
+        """, (season_id, player_a, player_b, player_b, player_a)).fetchone()
+        return wins['win_count'] if wins else 0
+    finally:
+        conn.close()
+
+# --- Backup Management ---
 
 def backup_database(db_path=DB_FILE, backup_dir='backups', prefix=None):
     """

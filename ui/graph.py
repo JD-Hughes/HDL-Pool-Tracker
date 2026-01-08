@@ -4,6 +4,7 @@ import database as db
 import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from stats import show_heatmap
 
 SMOOTHING_WINDOW = 5  # Number of games for moving average smoothing
 
@@ -31,6 +32,12 @@ class GraphTab:
             variable=self.smoothing_enabled,
             command=self.plot_elo_graph
         ).pack(side=tk.LEFT, padx=10)
+
+        ttk.Button(
+            control_frame, 
+            text="Show Heatmap", 
+            command=lambda: show_heatmap(season_id=self.selected_season_id.get())
+        ).pack(side=tk.RIGHT, padx=5)
 
     def refresh_season_selector(self):
         seasons = db.get_seasons()
