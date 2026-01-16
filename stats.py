@@ -35,6 +35,70 @@ def show_heatmap(season_id=None):
     fig.tight_layout()
     plt.show()
 
+def show_matchup_heatmap(season_id=None):
+    if season_id is None:
+        current_season = db.get_current_season()
+        if not current_season:
+            return
+        season_id = current_season['id']
+
+    matches = db.get_matches_for_season(season_id)
+    if not matches:
+        return
+
+    players = sorted({
+        name
+        for match in matches
+        for name in (
+            match.get('player1_name'),
+            match.get('player1b_name'),
+            match.get('player2_name'),
+            match.get('player2b_name'),
+        )
+        if name
+    })
+    if not players:
+        return
+
+    player_index = {name: i for i, name in enumerate(players)}
+    matchup_counts = np.zeros((len(players), len(players)), dtype=float)
+
+    for match in matches:
+        team_a = [match['player1_name']]
+        if match.get('player1b_name'):
+            team_a.append(match['player1b_name'])
+        team_b = [match['player2_name']]
+        if match.get('player2b_name'):
+            team_b.append(match['player2b_name'])
+
+        for player_a in team_a:
+            for player_b in team_b:
+                index_a = player_index[player_a]
+                index_b = player_index[player_b]
+                matchup_counts[index_a][index_b] += 1
+                matchup_counts[index_b][index_a] += 1
+
+    row_totals = matchup_counts.sum(axis=1)
+    normalized = np.zeros_like(matchup_counts)
+    for i, total in enumerate(row_totals):
+        if total > 0:
+            normalized[i, :] = matchup_counts[i, :] / total
+
+    fig, ax = plt.subplots()
+    im, cbar = heatmap(
+        normalized * 100,
+        players,
+        players,
+        ax=ax,
+        cmap="YlOrRd",
+        cbarlabel="Share of Games",
+        title="Opponent Matchup Share (Row player vs Column player)"
+    )
+    texts = annotate_heatmap(im, valfmt="{x:.1f}%")
+
+    fig.tight_layout()
+    plt.show()
+
 # The following is taken from the Matplotlib documentation with minor modifications
 # https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html
 
