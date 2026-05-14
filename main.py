@@ -9,6 +9,8 @@ import sys
 # Import local modules
 import database as db
 from ui import graph
+from ui import heatmaps
+from ui import elo_gain
 from ui import admin
 from ui import leaderboard
 from ui import history
@@ -40,6 +42,8 @@ class EloApp:
         self.recordTab = record.RecordTab(self.notebook, self) # Create record tab instance
         self.historyTab = history.HistoryTab(self.notebook, self) # Create history tab instance
         self.graphTab = graph.GraphTab(self.notebook, self) # Create graph tab instance
+        self.heatmapTab = heatmaps.HeatmapTab(self.notebook, self) # Create heatmap tab instance
+        self.eloGainTab = elo_gain.EloGainTab(self.notebook, self) # Create Elo gain tab instance
         self.adminTab = admin.AdminTab(self.notebook, self) # Create admin tab instance
 
         # --- Initial Data Load ---
@@ -52,6 +56,8 @@ class EloApp:
         self.recordTab.refresh_player_selectors()
         self.leaderboardTab.refresh_leaderboard()
         self.graphTab.refresh_season_selector() # This will trigger graph/history refresh
+        self.heatmapTab.refresh_season_selector()
+        self.eloGainTab.refresh_season_selector()
         self.historyTab.refresh_history()
 
         # Do a backup check
@@ -87,6 +93,7 @@ if __name__ == "__main__":
     root = tk.Tk()
     icon = tk.PhotoImage(file=resource_path("img/8-ball.png"))
     root.iconphoto(True, icon)
-    root.geometry("800x600")
+    root.geometry("900x750")
+    root.minsize(800, 700)
     app = EloApp(root)
     root.mainloop()

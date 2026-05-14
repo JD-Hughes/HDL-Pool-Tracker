@@ -174,7 +174,9 @@ def get_leaderboard_players():
             SELECT name, current_elo, current_wins, current_losses 
             FROM players
             WHERE archive = 0 
-            ORDER BY current_elo DESC
+            ORDER BY
+                (current_wins + current_losses = 0) ASC,
+                current_elo DESC
         """).fetchall()
         return [dict(p) for p in players]
     finally:

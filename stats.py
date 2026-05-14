@@ -3,6 +3,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib
 
+def mask_self_matchups(data):
+    masked_data = np.ma.array(data, copy=True)
+    diagonal_size = min(masked_data.shape)
+    for index in range(diagonal_size):
+        masked_data[index, index] = np.ma.masked
+    return masked_data
+
 def show_heatmap(season_id=None):
     # Get current season ID
     if season_id is None:
@@ -28,8 +35,15 @@ def show_heatmap(season_id=None):
 
     fig, ax = plt.subplots()
 
-    im, cbar = heatmap(heatmap_data, players, players, ax=ax,
-                    cmap="YlGn", cbarlabel="Win Percentage", title="Player Win Rate Percentage (Left player vs Top Player)")
+    im, cbar = heatmap(
+        mask_self_matchups(heatmap_data),
+        players,
+        players,
+        ax=ax,
+        cmap="YlGn",
+        cbarlabel="Win Percentage",
+        title="Player Win Rate Percentage (Left player vs Top Player)"
+    )
     texts = annotate_heatmap(im, valfmt="{x:.1f}%")
 
     fig.tight_layout()
@@ -86,7 +100,7 @@ def show_matchup_heatmap(season_id=None):
 
     fig, ax = plt.subplots()
     im, cbar = heatmap(
-        normalized * 100,
+        mask_self_matchups(normalized * 100),
         players,
         players,
         ax=ax,
@@ -100,15 +114,24 @@ def show_matchup_heatmap(season_id=None):
     plt.show()
 
 def show_combined_heatmaps(season_id=None):
+    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(12, 5))
+    if not plot_combined_heatmaps(ax_left, ax_right, season_id):
+        plt.close(fig)
+        return
+
+    fig.tight_layout()
+    plt.show()
+
+def plot_combined_heatmaps(ax_left, ax_right, season_id=None):
     if season_id is None:
         current_season = db.get_current_season()
         if not current_season:
-            return
+            return False
         season_id = current_season['id']
 
     matches = db.get_matches_for_season(season_id)
     if not matches:
-        return
+        return False
 
     players = sorted({
         name
@@ -122,7 +145,7 @@ def show_combined_heatmaps(season_id=None):
         if name
     })
     if not players:
-        return
+        return False
 
     player_index = {name: i for i, name in enumerate(players)}
 
@@ -161,10 +184,8 @@ def show_combined_heatmaps(season_id=None):
             if total_matches > 0:
                 win_rates[i][j] = (wins_a / total_matches) * 100
 
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(12, 5))
-
     im_left, cbar_left = heatmap(
-        matchup_share * 100,
+        mask_self_matchups(matchup_share * 100),
         players,
         players,
         ax=ax_left,
@@ -175,7 +196,7 @@ def show_combined_heatmaps(season_id=None):
     annotate_heatmap_with_counts(im_left, matchup_counts.astype(int), valfmt="{x:.1f}%")
 
     im_right, cbar_right = heatmap(
-        win_rates,
+        mask_self_matchups(win_rates),
         players,
         players,
         ax=ax_right,
@@ -185,8 +206,7 @@ def show_combined_heatmaps(season_id=None):
     )
     annotate_heatmap_with_counts(im_right, win_counts, valfmt="{x:.1f}%")
 
-    fig.tight_layout()
-    plt.show()
+    return True
 
 # The following is taken from the Matplotlib documentation with minor modifications
 # https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html
@@ -220,6 +240,11 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     if cbar_kw is None:
         cbar_kw = {}
+
+    if "cmap" in kwargs:
+        color_map = matplotlib.colormaps[kwargs["cmap"]].copy()
+        color_map.set_bad(color="black")
+        kwargs["cmap"] = color_map
 
     # Plot the heatmap
     im = ax.imshow(data, **kwargs)
@@ -302,6 +327,8 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
     texts = []
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
+            if np.ma.is_masked(data[i, j]):
+                continue
             kw.update(color=textcolors[int(im.norm(data[i, j]) > threshold)])
             text = im.axes.text(j, i, valfmt(data[i, j], None), **kw)
             texts.append(text)
@@ -329,6 +356,8 @@ def annotate_heatmap_with_counts(im, counts, data=None, valfmt="{x:.2f}",
     texts = []
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
+            if np.ma.is_masked(data[i, j]):
+                continue
             kw.update(color=textcolors[int(im.norm(data[i, j]) > threshold)])
             count = counts[i][j] if counts is not None else 0
             label = f"{valfmt(data[i, j], None)}\n({count})"

@@ -1,12 +1,38 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk
 import database as db
 import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from stats import show_combined_heatmaps
 
 SMOOTHING_WINDOW = 5  # Number of games for moving average smoothing
+ACCESSIBLE_LINE_COLORS = [
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # bluish green
+    "#D55E00",  # vermillion
+    "#CC79A7",  # reddish purple
+    "#56B4E9",  # sky blue
+    "#F0E442",  # yellow
+    "#000000",  # black
+]
+LINE_STYLES = ["-", ":", "--", "-."]
+
+
+def get_line_style(index):
+    color_index = index % len(ACCESSIBLE_LINE_COLORS)
+    style_index = index // len(ACCESSIBLE_LINE_COLORS)
+    return {
+        "color": ACCESSIBLE_LINE_COLORS[color_index],
+        "linestyle": LINE_STYLES[min(style_index, len(LINE_STYLES) - 1)],
+    }
+
+
+def get_match_players(match):
+    players = [match.get('player1_name'), match.get('player2_name')]
+    if match.get('doubles_match', 0):
+        players.extend([match.get('player1b_name'), match.get('player2b_name')])
+    return [player for player in players if player]
 
 class GraphTab:
     def __init__(self, parent, app):
@@ -32,12 +58,6 @@ class GraphTab:
             variable=self.smoothing_enabled,
             command=self.plot_elo_graph
         ).pack(side=tk.LEFT, padx=10)
-
-        ttk.Button(
-            control_frame, 
-            text="Show Heatmap",
-            command=lambda: show_combined_heatmaps(season_id=self.selected_season_id.get())
-        ).pack(side=tk.RIGHT, padx=5)
 
     def refresh_season_selector(self):
         seasons = db.get_seasons()
@@ -71,16 +91,21 @@ class GraphTab:
         if not matches:
             return
 
-        # Get all unique players in this season's matches (including doubles)
-        players_in_season = set()
-        for match in matches:
-            players_in_season.add(match['player1_name'])
-            players_in_season.add(match['player2_name'])
-            if match.get('doubles_match', 0):
-                if match.get('player1b_name'):
-                    players_in_season.add(match['player1b_name'])
-                if match.get('player2b_name'):
-                    players_in_season.add(match['player2b_name'])
+        # Get players who actually appeared in this season's matches.
+        player_match_counts = {}
+        first_match_index = {}
+        for match_index, match in enumerate(matches):
+            for player in get_match_players(match):
+                player_match_counts[player] = player_match_counts.get(player, 0) + 1
+                first_match_index.setdefault(player, match_index)
+
+        players_in_season = sorted(
+            player for player, match_count in player_match_counts.items()
+            if match_count > 0
+        )
+
+        if not players_in_season:
+            return
 
         # Build elo history timeline from matches (using new schema)
         elo_data = {p: [db.INITIAL_ELO] for p in players_in_season}
@@ -118,14 +143,26 @@ class GraphTab:
         fig = Figure(figsize=(8, 5), dpi=100)
         ax = fig.add_subplot(111)
 
-        for player, elos in elo_to_plot.items():
-            ax.plot(range(len(elos)), elos, label=player)
+        players_to_plot = sorted(
+            elo_to_plot.keys(),
+            key=lambda player: (first_match_index[player], player),
+        )
+
+        for index, player in enumerate(players_to_plot):
+            elos = elo_to_plot[player]
+            ax.plot(
+                range(len(elos)),
+                elos,
+                label=player,
+                linewidth=2,
+                **get_line_style(index)
+            )
 
         ax.set_title(f"Elo Ratings Over Time{title_suffix}")
         ax.set_xlabel("Games Played in Season")
         ax.set_ylabel("Elo Rating")
         ax.grid(True)
-        ax.legend()
+        ax.legend(fontsize='small', ncol=2 if len(players_to_plot) > 8 else 1)
         fig.tight_layout()
 
         self.graph_canvas = FigureCanvasTkAgg(fig, master=self.graph_tab)
